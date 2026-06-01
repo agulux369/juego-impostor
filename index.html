@@ -39,6 +39,7 @@
     }
     .row{ display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:center; }
     .status{ color:var(--muted); min-height:1.2rem; font-size:.95rem; text-align:center; }
+    .field{ display:grid; gap:8px; margin-top:14px; }
     label{ color:#dfd7ca; }
     input[type="number"], input[type="text"], textarea, select{
       width:100%; padding:11px 12px; border-radius:8px; border:1px solid var(--border);
@@ -88,13 +89,13 @@
       opacity:.48; transform:translateZ(-1px);
     }
     .card.big{ width:min(82vw, 470px); }
-    .card.flipped{ transform: rotateY(180deg) translateZ(10px); -webkit-transform: rotateY(180deg) translateZ(10px); }
+    .card.flipped{ transform: rotateY(180deg); -webkit-transform: rotateY(180deg); }
     .card:hover{ filter: drop-shadow(0 30px 50px rgba(0,0,0,.5)); }
     .face{
       position:absolute; inset:0; display:grid; place-items:center;
       backface-visibility:hidden; -webkit-backface-visibility:hidden;
       padding:34px 28px; border-radius:18px; text-align:center; overflow:hidden;
-      transform: translateZ(.1px); -webkit-transform: translateZ(.1px);
+      transform: rotateY(0deg); -webkit-transform: rotateY(0deg);
       border:1px solid rgba(51,34,16,.55);
       box-shadow: inset 0 0 0 9px rgba(255,244,212,.32), inset 0 0 0 12px rgba(88,50,20,.18);
     }
@@ -112,6 +113,7 @@
     }
     .card.flipped .face::after{ transform:translateX(34%); opacity:.13; }
     .front{
+      z-index:2;
       background:
         linear-gradient(45deg, rgba(77,37,16,.18) 25%, transparent 25% 50%, rgba(77,37,16,.18) 50% 75%, transparent 75%) 0 0 / 22px 22px,
         radial-gradient(170px 220px at 50% 26%, rgba(255,246,210,.22), transparent 64%),
@@ -121,6 +123,7 @@
     .front .title{ font-size: clamp(20px, 4.8vw, 32px); font-weight:950; letter-spacing:0; text-transform:uppercase; text-shadow:0 1px 0 rgba(255,240,200,.45); }
     .front .turn{ margin-top:12px; color:#4d321d; font-size: clamp(13px, 2.2vw, 16px); font-weight:700; }
     .back{
+      z-index:1;
       transform: rotateY(180deg); -webkit-transform: rotateY(180deg);
       background:
         radial-gradient(260px 190px at 50% 18%, rgba(255,246,210,.72), transparent 62%),
@@ -131,6 +134,8 @@
     .role{ font-size: clamp(30px, 6vw, 48px); font-weight:950; letter-spacing:0; line-height:1.02; text-transform:uppercase; }
     .word{ margin-top:12px; font-size: clamp(24px, 5vw, 38px); font-weight:950; color:#664018; overflow-wrap:anywhere; }
     .impostor{ color:#9b2f26; text-shadow: 0 2px 0 rgba(255,255,255,.28); }
+    .result-list{ margin-top:12px; display:grid; gap:8px; font-size:clamp(20px, 4vw, 34px); font-weight:950; color:#664018; }
+    .helper-text{ margin-top:12px; color:#5c4a34; font-size:.95rem; line-height:1.35; }
 
     .play .panel{ display:none; }
     .play .stage{ min-height: 76vh; }
@@ -166,6 +171,11 @@
           </div>
         </div>
       </div>
+      <div class="field">
+        <label for="playerNames">Nombres de jugadores (opcional, separados por coma)</label>
+        <input id="playerNames" type="text" placeholder="Ej: Agus, Mica, Juan, Sofi" />
+        <div class="hint">Si cargás nombres, tiene que haber exactamente un nombre por jugador. Si dejás el campo vacío, se usan Participante 1, 2, 3...</div>
+      </div>
 
       <details class="cats" id="catsDetails" open>
         <summary>Seleccionar categorías</summary>
@@ -200,6 +210,7 @@
         <div class="status" id="estado">Listo para empezar una ronda.</div>
         <div style="display:flex; gap:8px;">
           <button id="btnIniciar" type="button" title="Inicia la ronda y enfoca la tarjeta">Iniciar ronda</button>
+          <button id="btnRevelar" class="secondary" type="button" style="display:none;">Revelar impostor</button>
           <button id="btnNueva" class="secondary" type="button" style="display:none;">Nueva ronda</button>
         </div>
       </div>
@@ -264,8 +275,10 @@
       const card = document.getElementById("card");
       const contenidoRol = document.getElementById("contenidoRol");
       const btnIniciar = document.getElementById("btnIniciar");
+      const btnRevelar = document.getElementById("btnRevelar");
       const btnNueva = document.getElementById("btnNueva");
       const numJugadores = document.getElementById("numJugadores");
+      const playerNames = document.getElementById("playerNames");
 
       const catName = document.getElementById("catName");
       const catWords = document.getElementById("catWords");
@@ -277,6 +290,7 @@
       const numImpostores = document.getElementById("numImpostores");
 
       let jugadores=0, turno=0, palabra="", fase="oculta", ultimaPalabra="";
+      let nombresJugadores = [];
       let impostores = new Set(); // IDs 1..jugadores
       let tapLock = false;
 
@@ -349,6 +363,20 @@
         arr.forEach(w=>{ const k=w.toLowerCase(); if(!seen.has(k)){ seen.add(k); out.push(w);} });
         return out;
       }
+      function nombresParaRonda(n){
+        const raw = (playerNames.value || "").trim();
+        if(!raw) return Array.from({length:n}, (_, i) => `Participante ${i + 1}`);
+
+        const names = playerNames.value.split(",").map(s => s.trim());
+        if(names.length !== n || names.some(name => !name)){
+          alert(`Si cargás nombres, escribí exactamente ${n} nombres separados por coma, sin dejar espacios vacíos.`);
+          return null;
+        }
+        return names;
+      }
+      function nombreDelTurno(id){
+        return nombresJugadores[id - 1] || `Participante ${id}`;
+      }
 
       function palabrasSeleccionadas(){
         const activos = [...catsContainer.querySelectorAll("input[type=checkbox]")].filter(c => c.checked).map(c => c.dataset.cat);
@@ -369,15 +397,17 @@
       }
 
       function actualizarEstado(){
-        const impTxt = (impostores.size>1) ? `Impostores: ${[...impostores].join(", ")}` : `Impostor: ${[...impostores][0]||"-"}`;
-        estado.textContent = `Ronda activa — Jugadores: ${jugadores}. Turno ${turno}/${jugadores}. ${impTxt}`;
-        tituloTarjeta.textContent = `Tarjeta de participante ${turno}`;
+        const nombre = nombreDelTurno(turno);
+        estado.textContent = `Ronda activa — Jugadores: ${jugadores}. Turno ${turno}/${jugadores}.`;
+        tituloTarjeta.textContent = `Tarjeta de ${nombre}`;
         turnoInfo.textContent = "Tocá la tarjeta para revelar tu rol.";
       }
 
       function iniciarRonda(){
         jugadores = parseInt(numJugadores.value||"0",10);
         if(isNaN(jugadores) || jugadores < 3){ alert("Necesitás al menos 3 jugadores."); return; }
+        const nombres = nombresParaRonda(jugadores);
+        if(!nombres) return;
         if(palabrasSeleccionadas().length === 0){ alert("Seleccioná al menos una categoría o dejalas todas por defecto."); return; }
 
         // calcular cantidad de impostores
@@ -386,6 +416,7 @@
           cant = Math.min(Math.max(parseInt(numImpostores.value||"1",10),1), Math.min(3, jugadores-1));
         }
         impostores = pickImpostors(jugadores, cant);
+        nombresJugadores = nombres;
 
         document.body.classList.add("play");
         catsDetails.open = false;
@@ -396,6 +427,7 @@
         card.classList.remove("flipped");
         card.classList.add("big");
         contenidoRol.innerHTML = "";
+        btnRevelar.style.display = "none";
         btnNueva.style.display = "none";
         actualizarEstado();
       }
@@ -409,10 +441,11 @@
       }
 
       function renderBack(){
+        const nombre = escapeHTML(nombreDelTurno(turno));
         if(impostores.has(turno)){
-          contenidoRol.innerHTML = `<div class="role impostor">¡SOS EL IMPOSTOR!</div><div style="color:#9ca3af; font-size:.95rem">No tenés palabra — improvisá 😉</div><div style="margin-top:10px; color:#9ca3af; font-size:.92rem">Volvé a tocar la tarjeta para esconder tu rol y pasar al siguiente jugador.</div>`;
+          contenidoRol.innerHTML = `<div class="role impostor">${nombre}</div><div class="role impostor" style="font-size:clamp(24px,5vw,40px); margin-top:8px;">¡SOS EL IMPOSTOR!</div><div class="helper-text">No tenés palabra. Volvé a tocar la tarjeta para esconder tu rol y pasar al siguiente jugador.</div>`;
         } else {
-          contenidoRol.innerHTML = `<div class="role">Tu palabra</div><div class="word">${escapeHTML(palabra)}</div><div style="margin-top:10px; color:#9ca3af; font-size:.92rem">Volvé a tocar la tarjeta para esconder tu rol y pasar al siguiente jugador.</div>`;
+          contenidoRol.innerHTML = `<div class="role">${nombre}</div><div class="word">${escapeHTML(palabra)}</div><div class="helper-text">Volvé a tocar la tarjeta para esconder tu rol y pasar al siguiente jugador.</div>`;
         }
       }
       function escapeHTML(s){
@@ -423,6 +456,7 @@
         if(tapLock) return;
         tapLock = true; setTimeout(()=>tapLock=false, 980);
         if(jugadores < 3 || turno < 1) return;
+        if(turno > jugadores) return;
 
         if(fase === "oculta"){
           renderBack(); contenidoRol.offsetHeight;
@@ -432,6 +466,9 @@
           if(turno > jugadores){
             estado.textContent = "¡Listo! Ya tienen sus roles. ¡A jugar!";
             turnoInfo.textContent = "Ronda finalizada";
+            tituloTarjeta.textContent = "Ronda finalizada";
+            contenidoRol.innerHTML = "";
+            btnRevelar.style.display = "inline-block";
             btnNueva.style.display = "inline-block";
             document.body.classList.remove("play");
             card.classList.remove("big");
@@ -440,11 +477,23 @@
           }
         }
       }
+      function revelarImpostor(){
+        const nombres = [...impostores].sort((a,b)=>a-b).map(id => nombreDelTurno(id));
+        const titulo = nombres.length > 1 ? "Los impostores eran" : "El impostor era";
+        estado.textContent = `${titulo}: ${nombres.join(", ")}.`;
+        tituloTarjeta.textContent = "Resultado";
+        turnoInfo.textContent = "";
+        contenidoRol.innerHTML = `<div class="role impostor">${titulo}</div><div class="result-list">${nombres.map(escapeHTML).join("<br>")}</div><div class="helper-text">La palabra secreta era: <strong>${escapeHTML(palabra)}</strong></div>`;
+        card.classList.add("big");
+        card.classList.add("flipped");
+        btnRevelar.style.display = "none";
+      }
 
       card.addEventListener("click", onCardActivate, {passive:true});
       card.addEventListener("keydown", (e)=>{ if(e.code==="Enter"||e.code==="Space"){ e.preventDefault(); onCardActivate(); } });
 
       btnIniciar.addEventListener("click", iniciarRonda);
+      btnRevelar.addEventListener("click", revelarImpostor);
       btnNueva.addEventListener("click", iniciarRonda);
 
       turnoInfo.textContent = "";
